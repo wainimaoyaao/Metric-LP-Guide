@@ -18,6 +18,23 @@ API = 'https://api.metric.xyz/public/v1/'
 PORT = int(os.environ.get('METRIC_LOCAL_PORT', '8767'))
 APP_ID = 'metric-local-planner'
 VERSION = 3
+BIND_HOST = os.environ.get('METRIC_BIND_HOST', '127.0.0.1')
+PUBLIC_ORIGIN = os.environ.get('METRIC_PUBLIC_ORIGIN', '').rstrip('/')
+if PUBLIC_ORIGIN:
+    public_url = urlparse(PUBLIC_ORIGIN)
+    if (public_url.scheme != 'https' or not public_url.hostname or public_url.path
+            or public_url.params or public_url.query or public_url.fragment
+            or public_url.username or public_url.password):
+        raise ValueError('METRIC_PUBLIC_ORIGIN must be an HTTPS origin')
+
+
+def request_allowed(host, origin, public_origin=PUBLIC_ORIGIN):
+    hosts = {f'127.0.0.1:{PORT}', f'localhost:{PORT}'}
+    origins = {f'http://127.0.0.1:{PORT}', f'http://localhost:{PORT}'}
+    if public_origin:
+        hosts.add(urlparse(public_origin).netloc)
+        origins.add(public_origin)
+    return host in hosts and (not origin or origin in origins)
 
 
 def obj(value):
@@ -257,10 +274,7 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
     def do_GET(self):
-        if self.headers.get('Host') not in (f'127.0.0.1:{PORT}', f'localhost:{PORT}'):
-            self.send_error(403)
-            return
-        if self.headers.get('Origin') not in (None, f'http://127.0.0.1:{PORT}', f'http://localhost:{PORT}'):
+        if not request_allowed(self.headers.get('Host'), self.headers.get('Origin')):
             self.send_error(403)
             return
         parsed, status = urlparse(self.path), 200
@@ -309,5 +323,5 @@ class LocalServer(ThreadingHTTPServer):
 
 
 if __name__ == '__main__':
-    print(f'Metric LP monitor: http://127.0.0.1:{PORT}', flush=True)
-    LocalServer(('127.0.0.1', PORT), Handler).serve_forever()
+    print(f'Metric LP monitor: http://{BIND_HOST}:{PORT}', flush=True)
+    LocalServer((BIND_HOST, PORT), Handler).serve_forever()

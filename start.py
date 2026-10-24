@@ -50,5 +50,6 @@ if __name__ == '__main__':
         print('已打开工具。服务在后台运行，关闭此启动窗口不影响使用。', flush=True)
     except Exception as e:
         print(str(e), flush=True)
-        input('按回车退出…')
+        if sys.stdin.isatty():
+            input('按回车退出…')
         raise SystemExit(1)
